@@ -30,7 +30,7 @@ def to_base64url(input_str: str) -> str:
     encoded = base64.urlsafe_b64encode(raw)
     return encoded.decode("utf-8").rstrip("=")
 
-def create_shell_descriptor(global_asset_id, asset, submodel_descriptors):
+def create_shell_descriptor(asset, submodel_descriptors):
             """
             Create an AAS shell-descriptor dict with the requested shape.
 
@@ -42,9 +42,6 @@ def create_shell_descriptor(global_asset_id, asset, submodel_descriptors):
             Returns:
                 A dictionary matching your shell descriptor format.
             """
-            if not global_asset_id or not isinstance(global_asset_id, str):
-                raise ValueError("global_asset_id must be a non-empty string.")
-            
             if not asset or not isinstance(asset, str):
                 raise ValueError("asset must be a non-empty string.")
             
@@ -56,7 +53,7 @@ def create_shell_descriptor(global_asset_id, asset, submodel_descriptors):
             return {
                 "id": shell_id,
                 "idShort": asset,
-                "globalAssetId": global_asset_id,
+                "globalAssetId": asset,
                 "submodelDescriptors": submodel_descriptors,
             }
         
@@ -219,6 +216,9 @@ def main():
                             f"[FAIL] {label}: HTTP {post_resp.status_code} {post_resp.text}"
                         )
                         yield ("failed", label)
+            
+            submodel_descriptors = create_submodel_descriptor(posted_submodels)
+            shell_descriptors = create_shell_descriptor(asset,submodel_descriptors)
             
             yield ("posted_submodels", posted_submodels)
 
