@@ -1,5 +1,7 @@
 import requests
 import os
+import uuid
+import base64
 from contextlib import contextmanager
 
 
@@ -23,6 +25,80 @@ def load_env_from_file(filepath):
             else:
                 os.environ[key] = original_value
 
+def to_base64url(input_str: str) -> str:
+    raw = input_str.encode("utf-8")
+    encoded = base64.urlsafe_b64encode(raw)
+    return encoded.decode("utf-8").rstrip("=")
+
+def create_shell_descriptor(global_asset_id, asset, submodel_descriptors):
+            """
+            Create an AAS shell-descriptor dict with the requested shape.
+
+            Args:
+                global_asset_id: Your global asset ID (IRI/URN/string).
+                asset: Name of the Asset for id_short
+                submodel_descriptors: A list of submodel descriptor dicts that will be attached as-is.
+
+            Returns:
+                A dictionary matching your shell descriptor format.
+            """
+            if not global_asset_id or not isinstance(global_asset_id, str):
+                raise ValueError("global_asset_id must be a non-empty string.")
+            
+            if not asset or not isinstance(asset, str):
+                raise ValueError("asset must be a non-empty string.")
+            
+            if not isinstance(submodel_descriptors, list) or not all(isinstance(d, dict) for d in submodel_descriptors):
+                raise ValueError("submodel_descriptors must be a list of dicts.")
+            
+            shell_id = f"urn:uuid:{uuid.uuid4()}"
+
+            return {
+                "id": shell_id,
+                "idShort": asset,
+                "globalAssetId": global_asset_id,
+                "submodelDescriptors": submodel_descriptors,
+            }
+        
+def create_submodel_descriptor(submodel_ids):
+    if not submodel_ids or not isinstance(submodel_ids, list):
+            raise ValueError("submodel_id must be a non-empty list")
+    
+    submodel_descriptors = []
+
+    for submodel_id in submodel_ids:
+        base64url_submodel_id = to_base64url(submodel_id)
+        submodel_endpoint = f"{DATA_PLANE_URL}/{base64url_submodel_id}"
+
+        submodel_descriptors.append({
+            "id": submodel_id,
+            "semanticId": None,
+            "endpoints": [
+                {
+                "interface": "SUBMODEL-3.0",
+                "protocolInformation": {
+                    "href": submodel_endpoint,
+                    "endpointProtocol": "HTTP",
+                    "endpointProtocolVersion": [
+                    "1.1"
+                    ],
+                    "subprotocol": "DSP",
+                    "subprotocolBody": SUBPROTOCOL_BODY,
+                    "subprotocolBodyEncoding": "plain",
+                    "securityAttributes": [
+                    {
+                        "type": "NONE",
+                        "key": "NONE",
+                        "value": "NONE"
+                    }
+                    ]
+                }
+                }
+            ]
+        }
+        )
+    return submodel_descriptors
+
 
 def main():
     with load_env_from_file("env.txt"):
@@ -44,6 +120,12 @@ def main():
         SM_URN_SUFFIX = ["%3Apcf%3A1.0.0", "%3Ahs%3A1.0.0", "%3Anameplate%3A1.0.0"]
 
         ASSETS = ["train.1", "measuring_wagon", "locomotive.cargo", "cargo_wagon.1"]
+
+        SUBPROTOCOL_BODY_ID = os.getenv("SUBPROTOCOL_BODY_ID", "123")
+        SUBPROTOCOL_BODY_DSP_ENDPOINT = os.getenv("SUBPROTOCOL_BODY_DSP_ENDPOINT", "http://edc.control.plane/api/v1/dsp")
+        SUBPROTOCOL_BODY = f"id={SUBPROTOCOL_BODY_ID};dspEndpoint={SUBPROTOCOL_BODY_DSP_ENDPOINT}"
+
+        DATA_PLANE_URL = os.getenv("DATA_PLANE_URL", "123")
 
         TIMEOUT_SECONDS = 20
         DRY_RUN = os.getenv("DRY_RUN", "False").lower() == "true"
@@ -126,10 +208,11 @@ def main():
 
                     if post_resp.status_code in (200, 201):
                         print(f"[OK] Posted item: {label}")
-                        posted_submodels.append(submodel)
+                        posted_submodels.append(label)
                         yield ("posted", label)
                     elif post_resp.status_code == 409:
                         print(f"[SKIP] Already exists (409): {label}")
+                        posted_submodels.append(label)
                         yield ("skipped", label)
                     else:
                         print(
