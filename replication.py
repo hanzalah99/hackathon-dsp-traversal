@@ -39,8 +39,9 @@ def main():
         SM_URN_PREFIX = "urn%3Aag.em%3Asm%3A"
         SM_URN_SUFFIX = [
             "%3Apcf%3A1.0.0",
-            "%3Apcf%3A2.0.0"
-        ]
+            "%3Ahs%3A1.0.0",
+            "%3Anameplate%3A1.0.0"
+            ]
 
         ASSETS = [
             "train.1",
@@ -97,6 +98,7 @@ def main():
                 )
                 if resp.status_code != 200:
                     print(f"[WARN] Failed to fetch {sm_id}: {resp.status_code} {resp.text}")
+                    yield ("failed", sm_id)
                     continue
 
                 submodel = resp.json()
@@ -141,6 +143,7 @@ def main():
         count = 0
         posted = 0
         skipped_409 = 0
+        failed = 0
 
         for result_type, label in fetch_and_post_submodels(token):
             count += 1
@@ -148,11 +151,14 @@ def main():
                 posted += 1
             elif result_type == "skipped":
                 skipped_409 += 1
+            elif result_type == "failed":
+                failed += 1
 
         print("\n--- Summary ---")
         print(f"Total source items: {count}")
         print(f"Posted:            {posted}")
         print(f"Skipped (409):     {skipped_409}")
+        print(f"Failed:            {failed}")
 
 
 if __name__ == "__main__":
