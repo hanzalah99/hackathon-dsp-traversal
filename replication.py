@@ -143,7 +143,7 @@ def main():
                 ]
             }
             )
-        return submodel_descriptors
+            return submodel_descriptors
 
         
         def fetch_and_post_submodels(token):
